@@ -13,6 +13,12 @@ typedef struct {
     double y;
 } Point;
 
+typedef struct {
+    int genes[M];      // 1 = open, 0 = closed
+    double cost;       // objective value
+    double fitness;    // usually based on cost
+} Individual;
+
 // Global problem instances
 Point population[N];
 int weights[N];    //number of people
@@ -34,10 +40,9 @@ double calculate_total_cost(int state[M]) {
         double min_dist = -1.0;
 
         for (int j = 0; j < M; j++) {
-            if (state[j] == 1) { // If hospital candidate j is active
+            if (state[j] == 1) { // If hospital candidate j is active(built)
                 // Euclidean distance formula
-                double dist = sqrt(pow(population[i].x - candidates[j].x, 2) +
-                                   pow(population[i].y - candidates[j].y, 2));
+                double dist = sqrt(pow(population[i].x - candidates[j].x, 2) + pow(population[i].y - candidates[j].y, 2));
 
                 if (min_dist < 0 || dist < min_dist) {
                     min_dist = dist;
@@ -46,6 +51,9 @@ double calculate_total_cost(int state[M]) {
         }
 
         // If no hospitals are selected open at all, return a heavily penalized cost
+        // This ensures that solutions with no hospitals are not considered valid
+        // A large constant penalty is used to discourage solutions without any hospitals
+        // This is a critical safeguard to prevent the algorithm from considering invalid solutions
         if (min_dist < 0)
             return 9999999.0;
 
@@ -161,7 +169,7 @@ void simulated_annealing() {
 
 int main() {
     // Seed random generation for dynamic profile parameters
-    srand(68);//time(NULL)
+    srand(time(NULL));
 
     // Setup uniform baseline instance metrics over domain region [0,100]
     for(int i = 0; i < N; i++) {
