@@ -289,8 +289,9 @@ plt.show()
 print("Plot 8 (Hill Climbing Tuning) generated and saved successfully!")
 
 
-alphas      = [0.99, 0.999, 0.9999]
-colors      = ['#e74c3c', '#2980b9', '#27ae60']
+
+alphas      = [0.8, 0.9, 0.95, 0.99]
+colors      = ['#e74c3c', '#2980b9', '#16a085', '#27ae60'] 
 labels      = [f'α = {a}' for a in alphas]
 
 plt.figure(figsize=(9, 5))

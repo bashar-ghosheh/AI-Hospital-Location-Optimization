@@ -1,16 +1,22 @@
+/*
+ *Amro Qutna 1231229 sec 1
+ *Bashar Ghosheh 1230368 sec 1
+ *
+ *Dr. Yazzan Abu Farha
+ *AI project: Hospital location optimization
+ */
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <time.h>
 
-#define N 100            // Number of population points (people needing coverage)
+#define N 100            // Number of population points
 #define M 100            // Number of candidate hospital locations
 #define HC_MAX_ITER 500  // Maximum iterations for the Hill Climbing baseline
 
-// Readability Constants for Binary States
-#define HOSPITAL_OPEN   1
-#define HOSPITAL_CLOSED 0
 
 // Structure to hold a 2D geographic coordinate pair
 typedef struct {
@@ -22,7 +28,7 @@ typedef struct {
 Point population[N];   // Coordinates of each population point
 int   weights[N];      // Population weights (number of people at each point)
 Point candidates[M];   // Coordinates of potential hospital sites
-double lambda;         // Penalty multiplier (λ) controlling build vs. travel tradeoff
+double lambda;         // Penalty multiplier (λ)
 
 // State representations: Binary arrays where 1 = Open Hospital, 0 = Closed
 int current_state[M];  // State currently being explored by the search step
@@ -32,11 +38,7 @@ int best_state[M];     // Global best state found during a single multi-run tria
 int snapshot_hc[M];
 int snapshot_sa[M];
 
-/**
- * OBJECTIVE/COST FUNCTION
- * Evaluates the absolute fitness landscape metric for a given binary state configuration.
- * Cost = Sum(weight_i * distance_to_closest_hospital) + (λ * number_of_open_hospitals)
- */
+
 double calculate_total_cost(int state[M]) {
     double travel_cost = 0.0;
     int open_hospitals_count = 0;
@@ -46,7 +48,7 @@ double calculate_total_cost(int state[M]) {
         double min_dist = -1.0;
 
         for (int j = 0; j < M; j++) {
-            if (state[j] == HOSPITAL_OPEN) { // Only check distance to active/open hospitals
+            if (state[j] == 1) { // Only check distance to active/open hospitals
                 double dist = sqrt(
                     pow(population[i].x - candidates[j].x, 2) +
                     pow(population[i].y - candidates[j].y, 2)
@@ -67,7 +69,7 @@ double calculate_total_cost(int state[M]) {
 
     // 2. Compute construction budget cost (λ * |HC|)
     for (int j = 0; j < M; j++) {
-        if (state[j] == HOSPITAL_OPEN) {
+        if (state[j] == 1) {
             open_hospitals_count++;
         }
     }
@@ -75,27 +77,19 @@ double calculate_total_cost(int state[M]) {
     return travel_cost + (lambda * open_hospitals_count);
 }
 
-/**
- * RANDOM INITIALIZATION
- * Randomly opens ~15% of candidate locations to seed the local search space.
- * Replaced the ternary conditional operator with an explicit if-else branch structure.
- */
+
 void initialize_random_state(int state[M]) {
     for (int j = 0; j < M; j++) {
         int roll = rand() % 100;
         if (roll < 15) {
-            state[j] = HOSPITAL_OPEN;
+            state[j] = 1;
         } else {
-            state[j] = HOSPITAL_CLOSED;
+            state[j] = 0;
         }
     }
 }
 
-/**
- * GREEDY HILL CLIMBING ALGORITHM
- * Explores immediate neighborhood states by flipping a single candidate bit.
- * Uses logical negation (!) instead of bitwise XOR (^) to flip states.
- */
+
 void hill_climbing() {
     // Generate an initial random solution setup
     initialize_random_state(current_state);
@@ -109,7 +103,7 @@ void hill_climbing() {
         // Pick a random candidate site to flip (Neighborhood operator)
         int idx = rand() % M;
 
-        // FLIPPING STATE BIT: Changed from ^= 1 to logical negation (!)
+        // FLIPPING STATE BIT
         current_state[idx] = !current_state[idx];
         double neighbor_cost = calculate_total_cost(current_state);
 
@@ -122,7 +116,9 @@ void hill_climbing() {
                 best_cost = current_cost;
                 memcpy(best_state, current_state, sizeof(int) * M);
             }
-        } else {
+        }
+
+        else {
             // REJECTION LOGIC: If the move worsens cost, undo the change with another logical negation
             current_state[idx] = !current_state[idx];
         }
@@ -132,11 +128,7 @@ void hill_climbing() {
     memcpy(current_state, best_state, sizeof(int) * M);
 }
 
-/**
- * SIMULATED ANNEALING ALGORITHM
- * Uses a stochastic cooling process to escape local optima.
- * Uses logical negation (!) instead of bitwise XOR (^) to explore neighbor states.
- */
+
 void simulated_annealing() {
     initialize_random_state(current_state);
     memcpy(best_state, current_state, sizeof(int) * M);
@@ -159,10 +151,13 @@ void simulated_annealing() {
         double delta_e = neighbor_cost - current_cost;
 
         int accept = 0;
+
         if (delta_e <= 0) {
             // Improvement or equal cost: Always accept the transition
             accept = 1;
-        } else {
+        }
+
+        else {
             // Solution degraded: Accept stochastically based on Boltzmann probability
             double acceptance_probability = exp(-delta_e / T);
             double roll = (double)rand() / RAND_MAX;
@@ -178,7 +173,9 @@ void simulated_annealing() {
                 best_cost = current_cost;
                 memcpy(best_state, current_state, sizeof(int) * M);
             }
-        } else {
+        }
+
+        else {
             // REJECTION LOGIC: Move denied, flip bit back using logical negation
             current_state[idx] = !current_state[idx];
         }
@@ -189,8 +186,6 @@ void simulated_annealing() {
 }
 
 int main() {
-    // Fixed Random Seed (Guarantees reproducible coordinates and matrix data)
-    // NOTE: To make instances fully randomized per execution, swap to: srand(time(NULL));
     srand(368);
 
     // 1. Populate initial benchmark coordinates over a uniform [0, 100] grid
@@ -234,7 +229,7 @@ int main() {
         // Perform 10 independent experimental runs per configuration to track stability
         for (int run = 1; run <= 10; run++) {
 
-            // --- Test Variant A: Hill Climbing ---
+            // --- Hill Climbing ---
             clock_t start1 = clock();
             hill_climbing();
             clock_t end1 = clock();
@@ -242,7 +237,9 @@ int main() {
 
             int hc_hospitals = 0;
             for (int j = 0; j < M; j++)
-                if (best_state[j] == HOSPITAL_OPEN) hc_hospitals++;
+                if (best_state[j] == 1)
+                    hc_hospitals++;
+
             double hc_cost = calculate_total_cost(best_state);
 
             if (lambda == 50.0)
@@ -250,7 +247,7 @@ int main() {
 
             fprintf(f_metrics, "HC,%f,%d,%d,%f,%f\n", lambda, run, hc_hospitals, hc_cost, time1);
 
-            // --- Test Variant B: Simulated Annealing ---
+            // --- Simulated Annealing ---
             clock_t start2 = clock();
             simulated_annealing();
             clock_t end2 = clock();
@@ -258,7 +255,9 @@ int main() {
 
             int sa_hospitals = 0;
             for (int j = 0; j < M; j++)
-                if (best_state[j] == HOSPITAL_OPEN) sa_hospitals++;
+                if (best_state[j] == 1)
+                    sa_hospitals++;
+
             double sa_cost = calculate_total_cost(best_state);
 
             if (lambda == 50.0)
