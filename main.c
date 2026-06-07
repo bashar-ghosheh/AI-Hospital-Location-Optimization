@@ -311,6 +311,8 @@ int main() {
     for (int j = 0; j < M; j++) {
         fprintf(f_cand, "%f,%f,%d,%d\n", candidates[j].x, candidates[j].y, snapshot_hc[j], snapshot_sa[j]);
     }
+    
+    
     fclose(f_cand);
 
     printf("\n Data successfully exported to CSV files for Python visualization!\n");
