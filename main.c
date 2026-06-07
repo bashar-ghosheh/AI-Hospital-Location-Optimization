@@ -82,6 +82,9 @@ void initialize_random_state(int state[M]) {
     }
 }
 
+// Hill Climbing Algorithm Implementation
+// We start with a random solution and iteratively explore its neighbors by flipping one bit (opening or closing one hospital).
+// If a neighbor has a lower cost, we move to that solution. We also keep track of the best solution found during the search.
 void hill_climbing() {
     initialize_random_state(current_state);
     double current_cost = calculate_total_cost(current_state);
@@ -312,7 +315,7 @@ int main() {
         fprintf(f_cand, "%f,%f,%d,%d\n", candidates[j].x, candidates[j].y, snapshot_hc[j], snapshot_sa[j]);
     }
     
-    
+
     fclose(f_cand);
 
     printf("\n Data successfully exported to CSV files for Python visualization!\n");
