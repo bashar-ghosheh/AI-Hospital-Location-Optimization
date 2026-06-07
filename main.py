@@ -6,6 +6,9 @@ import seaborn as sns
 import math
 import random
 
+import matplotlib
+matplotlib.use('TkAgg') # Forces Matplotlib to open pop-up windows
+
 # ==========================================
 # 0. Load Data
 # ==========================================
@@ -205,6 +208,86 @@ def sa_simulate(alpha, T0=1000.0, T_min=0.0001, seed=42):
         history.append((it, best))
 
     return history
+
+
+# ==========================================
+# 8. Parameter Tuning — Effect of HC Initialization Rate
+# ==========================================
+# The project requires at least one parameter tuning analysis per algorithm.
+# Here we simulate Hill Climbing with three different initial opening rates
+# to see how starting state sparsity affects convergence and final quality.
+
+def hc_simulate(init_prob, max_iter=500, seed=42):
+    """
+    Lightweight Python re-implementation of Hill Climbing on the same problem instance,
+    used purely for the parameter tuning visualization.
+    Returns a list of (iteration, best_cost_so_far) pairs.
+    """
+    random.seed(seed)
+    np.random.seed(seed)
+
+    pop   = list(zip(pop_df['X'], pop_df['Y']))
+    w     = list(pop_df['Weight'])
+    cands = list(zip(cand_df['X'], cand_df['Y']))
+    lam   = 50.0   # fixed lambda for fair comparison
+    M_    = len(cands)
+    N_    = len(pop)
+
+    def cost(state):
+        total = 0.0
+        open_idx = [j for j in range(M_) if state[j]]
+        if not open_idx:
+            return 9_999_999.0
+        for i in range(N_):
+            d = min(math.sqrt((pop[i][0]-cands[j][0])**2 + (pop[i][1]-cands[j][1])**2)
+                    for j in open_idx)
+            total += w[i] * d
+        total += lam * len(open_idx)
+        return total
+
+    # Initialise state based on the parameter tuning probability
+    state = [1 if random.random() < init_prob else 0 for _ in range(M_)]
+    cur   = cost(state)
+    best  = cur
+    history = [(0, best)]
+
+    for it in range(1, max_iter + 1):
+        idx = random.randrange(M_)
+        state[idx] ^= 1  # flip bit
+        nb = cost(state)
+
+        if nb < cur:
+            cur = nb
+            if cur < best:
+                best = cur
+        else:
+            state[idx] ^= 1  # undo flip
+
+        history.append((it, best))
+
+    return history
+
+probs       = [0.10, 0.25, 0.50]
+hc_colors   = ['#8e44ad', '#d35400', '#16a085']
+hc_labels   = [f'Init Open Rate = {int(p*100)}%' for p in probs]
+
+plt.figure(figsize=(9, 5))
+for prob, color, label in zip(probs, hc_colors, hc_labels):
+    hist = hc_simulate(prob)
+    iters, costs = zip(*hist)
+    plt.plot(iters, costs, color=color, label=label, linewidth=1.5)
+
+plt.title('Hill Climbing Parameter Tuning: Effect of Initialization Rate on Convergence\n'
+          '(λ = 50, single run per rate)')
+plt.xlabel('Iteration')
+plt.ylabel('Best Cost Found So Far')
+plt.legend()
+plt.tight_layout()
+plt.savefig('8_hc_tuning.png', dpi=SAVE_DPI)
+plt.show()
+
+print("Plot 8 (Hill Climbing Tuning) generated and saved successfully!")
+
 
 alphas      = [0.99, 0.999, 0.9999]
 colors      = ['#e74c3c', '#2980b9', '#27ae60']
