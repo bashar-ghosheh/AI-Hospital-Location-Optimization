@@ -277,9 +277,6 @@ int main() {
                 ties++;
         }
 
-        // ==================================================================
-        // ENHANCED TERMINAL REPORTING BLOCK (FOR REPORT TABLES)
-        // ==================================================================
         double hc_avg_cost = hc_sum_cost / 10.0;
         double sa_avg_cost = sa_sum_cost / 10.0;
         double hc_avg_time = hc_sum_time / 10.0;
