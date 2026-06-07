@@ -1,161 +1,149 @@
+/*
+ * Amro Qutna 1231229 sec 1
+ * Bashar Ghosheh 1230368 sec 1
+ *
+ * Dr. Yazzan Abu Farha
+ * AI project: Hospital location optimization
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <time.h>
 
-#define N 100        // Number of population points
-#define M 100        // Number of candidate hospital locations
-#define HC_MAX_ITER 500 // Max iterations for Hill Climbing
+#define N 100       // Number of population points
+#define M 100       // Number of candidate hospital locations
+#define MAX_ITER 500
 
-// Structure to hold a 2D coordinate pair
 typedef struct {
     double x;
     double y;
 } Point;
 
-// ─── Global Problem Instance ──────────────────────────────────────────────────
-Point population[N];   // Coordinates of each population point
-int   weights[N];      // Number of people at each population point
-Point candidates[M];   // Coordinates of each candidate hospital site
-double lambda;         // Hospital cost parameter λ — controls build-vs-travel tradeoff
+Point population[N];    // Coordinates of each population point
+int   weights[N];       // Number of people at each population point
+Point candidates[M];    // Coordinates of each candidate hospital site
+double lambda;
 
-// ─── State Representations ────────────────────────────────────────────────────
-// Each array has M entries; index j corresponds to candidate site j.
-// state[j] = 1  →  hospital is built at site j
-// state[j] = 0  →  site j is unused
-int current_state[M]; // Working state (modified in-place during search)
-int best_state[M];    // Best state found so far (used by both HC and SA)
+// state[j] = 1 ->  hospital is built at site j
+// state[j] = 0  ->  hospital is NOT built at site j
+int current_state[M]; 
+int best_state[M];   
 
-// ─── Snapshot for Map Export ─────────────────────────────────────────────────
-// Captured at lambda = 50 so the geographic plot is meaningful
+// Snapshot to export map
+// Captured at lambda = 50 to give a balanced geographic view (neither too many nor too few hospitals)
 int snapshot_hc[M];
 int snapshot_sa[M];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// calculate_total_cost
-//
-// Input : state[M] — a candidate solution (0/1 array of open hospitals)
-// Output: the scalar objective value to MINIMISE:
-//           cost = Σ_i ( w_i * min_j∈HC dist(P_i, C_j) )  +  λ * |HC|
-//         Returns 9999999.0 if no hospital is open (infeasible penalty).
-// ─────────────────────────────────────────────────────────────────────────────
 double calculate_total_cost(int state[M]) {
     double travel_cost = 0.0;
     int open_hospitals_count = 0;
 
     // 1. For each population point, find distance to nearest open hospital
     for (int i = 0; i < N; i++) {
-        double min_dist = -1.0;
+        double min_dist = -1.0; // Start with -1 because no hospital found yet
 
         for (int j = 0; j < M; j++) {
             if (state[j] == 1) {
                 // Euclidean distance between population point i and candidate j
-                double dist = sqrt(
-                    pow(population[i].x - candidates[j].x, 2) +
-                    pow(population[i].y - candidates[j].y, 2)
-                );
+                double dist = sqrt(pow(population[i].x - candidates[j].x, 2) + pow(population[i].y - candidates[j].y, 2));
                 if (min_dist < 0 || dist < min_dist) {
                     min_dist = dist;
                 }
             }
         }
 
-        // Infeasibility guard: no hospital open → heavily penalise
+        // return heavy penalty if no hospital is open (infeasible solution)
         if (min_dist < 0)
             return 9999999.0;
 
-        travel_cost += weights[i] * min_dist; // weighted distance contribution
+        travel_cost += weights[i] * min_dist;
     }
 
-    // 2. Building cost: λ × number of open hospitals
+    // Building cost = λ × number of open hospitals
     for (int j = 0; j < M; j++) {
-        if (state[j] == 1) open_hospitals_count++;
+        if (state[j] == 1)
+            open_hospitals_count++;
     }
 
-    return travel_cost + lambda * open_hospitals_count;
+    return travel_cost + (lambda * open_hospitals_count);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// initialize_random_state
-//
-// Input : state[M] — array to initialise
-// Output: state is filled with a random binary solution where each site has
-//         ~15% probability of being selected (gives roughly 10–20% open).
-// ─────────────────────────────────────────────────────────────────────────────
-
+// This function is used to generate a random initial solution for both HC and SA.
+// State is filled with a random binary solution where each site has 10-20% probability of being selected.
 void initialize_random_state(int state[M]) {
     for (int j = 0; j < M; j++) {
-        state[j] = ((rand() % 100) < 15) ? 1 : 0;
+        if(rand() % 100 < 15) {
+            state[j] = 1; // Open hospital at site j
+        } else {
+            state[j] = 0; // Do not open hospital at site j
+        }
     }
 }
 
-
 void hill_climbing() {
-    // Initialise with a random solution
     initialize_random_state(current_state);
     double current_cost = calculate_total_cost(current_state);
 
     // Seed best_state with the initial solution
     memcpy(best_state, current_state, sizeof(int) * M);
+
     double best_cost = current_cost;
 
-    for (int iter = 0; iter < HC_MAX_ITER; iter++) {
-        int idx = rand() % M;
+    for (int iter = 0; iter < MAX_ITER; iter++) {
+        int i = rand() % M;
 
-        // Flip candidate bit to generate a neighbour
-        current_state[idx] ^= 1;
+        // Flip bit to generate a neighbour
+        current_state[i] = 1 - current_state[i]; // Flip 0 to 1 or 1 to 0
         double neighbor_cost = calculate_total_cost(current_state);
 
         if (neighbor_cost < current_cost) {
-            // Accept improvement
+            // neighbour is better: accept it
             current_cost = neighbor_cost;
 
-            // Update best if this is the global best seen so far
+            // if this neighbor's cost is the best until now, update best_state
             if (current_cost < best_cost) {
                 best_cost = current_cost;
                 memcpy(best_state, current_state, sizeof(int) * M);
             }
         } else {
-            // Reject — undo the flip
-            current_state[idx] ^= 1;
+            // neighbour is worse: reject it and undo flip
+            current_state[i] = 1 - current_state[i];
         }
     }
 
-    // Ensure current_state reflects the best solution found
+    // After HC finishes, best_state holds the best solution found. Copy it back to current_state.
     memcpy(current_state, best_state, sizeof(int) * M);
 }
 
 
 void simulated_annealing() {
-    // Initialise with a random solution
     initialize_random_state(current_state);
     memcpy(best_state, current_state, sizeof(int) * M);
 
     double current_cost = calculate_total_cost(current_state);
     double best_cost    = current_cost;
 
-    double T     = 1000.0; // Initial temperature
-    double alpha = 0.95;  // Cooling rate (slow cooling → ~16,000 iterations,
-                           // giving SA enough time to escape local minima)
+    double T     = 1000.0;
+    double alpha = 0.95; 
 
-    // Run until temperature effectively reaches zero
+    // Run until temperature is very close to zero
     while (T > 0.00000000001) {
         int idx = rand() % M;
 
         // Flip one bit to generate a neighbour
-        current_state[idx] ^= 1;
+        current_state[idx] = 1 - current_state[idx]; // Flip 0 to 1 or 1 to 0
         double neighbor_cost = calculate_total_cost(current_state);
 
-        // Δe < 0 → improvement; Δe > 0 → degradation
         double delta_e = neighbor_cost - current_cost;
 
         int accept = 0;
         if (delta_e <= 0) {
-            // Better or equal solution: always accept
+            // Better or equal solution: Accept
             accept = 1;
         } else {
-            // Worse solution: accept with Boltzmann probability
+            // Worse solution: accept with probability
             double acceptance_probability = exp(-delta_e / T);
             if ((double)rand() / RAND_MAX < acceptance_probability) {
                 accept = 1;
@@ -164,58 +152,60 @@ void simulated_annealing() {
 
         if (accept) {
             current_cost = neighbor_cost;
-            // Track global best
+            // if this neighbor's cost is the best until now, update best_state
             if (current_cost < best_cost) {
                 best_cost = current_cost;
                 memcpy(best_state, current_state, sizeof(int) * M);
             }
         } else {
-            // Reject move — undo flip
-            current_state[idx] ^= 1;
+            // neighbour is worse: reject it and undo flip
+            current_state[idx] = 1 - current_state[idx];
         }
 
         T *= alpha; // Cool down
     }
 }
+    // Open output Files
+    // We want to make the algorithm in C but we also want to visualise results in Python
+    // So we export to CSV files that Python can easily read:
+    // we will write three CSV files:
+    // metrics.csv will contain run results for algorithms and all λ values
+    // population.csv will contain the coordinates and weights of the population points
+    // candidates.csv will contain the coordinates of candidate sites and whether they were selected in the HC and SA solutions at λ=50
 
-// ─────────────────────────────────────────────────────────────────────────────
-// main
-//
-// 1. Generates a random problem instance (population + candidates).
-// 2. Runs HC and SA 10 times for each λ ∈ {1, 10, 50, 100}.
-// 3. Prints averaged summary statistics to stdout.
-// 4. Writes detailed per-run metrics to metrics.csv.
-// 5. Writes population data to population.csv.
-// 6. Writes candidate site selections (at λ=50) to candidates.csv for the
-//    geographic visualisation in main.py.
-// ─────────────────────────────────────────────────────────────────────────────
 int main() {
     srand(368);
 
-    // ── Generate problem instance over [0, 100] × [0, 100] ──────────────────
+    // 1. Populate initial benchmark coordinates over a uniform [0, 100] grid
     for (int i = 0; i < N; i++) {
         population[i].x = (double)(rand() % 101);
         population[i].y = (double)(rand() % 101);
-        weights[i] = (rand() % 10) + 1; // Uniform integer weight in [1, 10]
+        weights[i] = (rand() % 10) + 1; // Population densities assigned between 1 and 10
     }
     for (int j = 0; j < M; j++) {
         candidates[j].x = (double)(rand() % 101);
         candidates[j].y = (double)(rand() % 101);
     }
 
-    // ── Open output files ────────────────────────────────────────────────────
+    // 2. Setup metric collection files for Python automation pipeline
     FILE *f_metrics = fopen("metrics.csv", "w");
-    if (!f_metrics) { perror("Error creating metrics.csv"); return 1; }
+    if (!f_metrics) {
+        perror("Error creating metrics.csv");
+        return 1;
+    }
     fprintf(f_metrics, "Algorithm,Lambda,Run,Hospitals,TotalCost,Time\n");
 
     FILE *f_pop = fopen("population.csv", "w");
-    if (!f_pop) { perror("Error creating population.csv"); return 1; }
+    if (!f_pop) {
+        perror("Error creating population.csv");
+        return 1;
+    }
     fprintf(f_pop, "X,Y,Weight\n");
     for (int i = 0; i < N; i++)
         fprintf(f_pop, "%f,%f,%d\n", population[i].x, population[i].y, weights[i]);
     fclose(f_pop);
 
-    // ── Lambda values (log-scale) ────────────────────────────────────────────
+    // 3. Define log-scale Lambda (λ) test spectrum
     double lambda_values[4] = {1.0, 10.0, 50.0, 100.0};
 
     printf("==================================================================\n");
@@ -230,88 +220,99 @@ int main() {
         double hc_sum_time = 0.0,  sa_sum_time = 0.0;
         int    hc_wins = 0, sa_wins = 0, ties = 0;
 
+        // Perform 10 independent experimental runs per configuration to track stability
         for (int run = 1; run <= 10; run++) {
 
-            // ── Hill Climbing ─────────────────────────────────────────────
+            // --- Hill Climbing ---
             clock_t start1 = clock();
             hill_climbing();
             clock_t end1 = clock();
             double time1 = (double)(end1 - start1) / CLOCKS_PER_SEC;
 
-            // HC result lives in best_state (and mirrored to current_state)
             int hc_hospitals = 0;
             for (int j = 0; j < M; j++)
-                if (best_state[j] == 1) hc_hospitals++;
+                if (best_state[j] == 1)
+                    hc_hospitals++;
+
             double hc_cost = calculate_total_cost(best_state);
 
-            // Save a snapshot of HC result at λ = 50 for the map plot
             if (lambda == 50.0)
                 memcpy(snapshot_hc, best_state, sizeof(int) * M);
 
-            fprintf(f_metrics, "HC,%f,%d,%d,%f,%f\n",
-                    lambda, run, hc_hospitals, hc_cost, time1);
+            fprintf(f_metrics, "HC,%f,%d,%d,%f,%f\n", lambda, run, hc_hospitals, hc_cost, time1);
 
-            // ── Simulated Annealing ───────────────────────────────────────
+            // --- Simulated Annealing ---
             clock_t start2 = clock();
             simulated_annealing();
             clock_t end2 = clock();
             double time2 = (double)(end2 - start2) / CLOCKS_PER_SEC;
 
-            // SA result lives in best_state
             int sa_hospitals = 0;
             for (int j = 0; j < M; j++)
-                if (best_state[j] == 1) sa_hospitals++;
+                if (best_state[j] == 1)
+                    sa_hospitals++;
+
             double sa_cost = calculate_total_cost(best_state);
 
-            // Save a snapshot of SA result at λ = 50 for the map plot
             if (lambda == 50.0)
                 memcpy(snapshot_sa, best_state, sizeof(int) * M);
 
-            fprintf(f_metrics, "SA,%f,%d,%d,%f,%f\n",
-                    lambda, run, sa_hospitals, sa_cost, time2);
+            fprintf(f_metrics, "SA,%f,%d,%d,%f,%f\n", lambda, run, sa_hospitals, sa_cost, time2);
 
-            // ── Accumulate totals ─────────────────────────────────────────
-            hc_sum_cost      += hc_cost;
-            sa_sum_cost      += sa_cost;
+            // Accumulate performance metrics
+            hc_sum_cost += hc_cost;
+            sa_sum_cost += sa_cost;
             hc_sum_hospitals += hc_hospitals;
             sa_sum_hospitals += sa_hospitals;
-            hc_sum_time      += time1;
-            sa_sum_time      += time2;
+            hc_sum_time += time1;
+            sa_sum_time += time2;
 
-            if      (hc_cost < sa_cost) hc_wins++;
-            else if (sa_cost < hc_cost) sa_wins++;
-            else                        ties++;
+            if (hc_cost < sa_cost)
+                hc_wins++;
+
+            else if (sa_cost < hc_cost)
+                sa_wins++;
+
+            else
+                ties++;
         }
 
-        // ── Print averaged summary for this λ ────────────────────────────
+        // ==================================================================
+        // ENHANCED TERMINAL REPORTING BLOCK (FOR REPORT TABLES)
+        // ==================================================================
+        double hc_avg_cost = hc_sum_cost / 10.0;
+        double sa_avg_cost = sa_sum_cost / 10.0;
+        double hc_avg_time = hc_sum_time / 10.0;
+        double sa_avg_time = sa_sum_time / 10.0;
+
         printf("\n--- Results for Lambda (λ) = %.1f (Averaged over 10 runs) ---\n", lambda);
         printf("  [Hill Climbing]\n");
-        printf("    Avg Open Hospitals : %.1f\n",      hc_sum_hospitals / 10.0);
-        printf("    Avg Objective Cost : %.2f\n",      hc_sum_cost      / 10.0);
-        printf("    Avg Execution Time : %.4f seconds\n", hc_sum_time   / 10.0);
+        printf("    Avg Open Hospitals : %.1f\n",hc_sum_hospitals / 10.0);
+        printf("    Avg Objective Cost : %.2f\n",hc_avg_cost);
+        printf("    Avg Execution Time : %.4f seconds\n", hc_avg_time);
 
         printf("\n  [Simulated Annealing]\n");
-        printf("    Avg Open Hospitals : %.1f\n",      sa_sum_hospitals / 10.0);
-        printf("    Avg Objective Cost : %.2f\n",      sa_sum_cost      / 10.0);
-        printf("    Avg Execution Time : %.4f seconds\n", sa_sum_time   / 10.0);
+        printf("    Avg Open Hospitals : %.1f\n",sa_sum_hospitals / 10.0);
+        printf("    Avg Objective Cost : %.2f\n",sa_avg_cost);
+        printf("    Avg Execution Time : %.4f seconds\n", sa_avg_time);
 
-        printf("\n  [Head-to-Head Win Rate]\n");
-        printf("    SA Wins: %d | HC Wins: %d | Ties: %d\n", sa_wins, hc_wins, ties);
-        printf("------------------------------------------------------------------\n");
+        printf("\n  [Algorithm Performance Comparison Summary]\n");
+        printf("    Head-to-Head Record: SA Wins: %d | HC Wins: %d | Ties: %d\n", sa_wins, hc_wins, ties);
+        printf("    Cost Improvement   : %.2f%%\n", ((hc_avg_cost - sa_avg_cost) / hc_avg_cost) * 100.0);
+        printf("==================================================================\n");
     }
 
     fclose(f_metrics);
 
-    // ── Export candidate site selections (snapshot at λ = 50) ────────────────
-    // Using λ = 50 gives a balanced, informative geographic view —
-    // neither too many hospitals (low λ) nor too few (high λ).
+    // Save final spatial solution nodes mapping
     FILE *f_cand = fopen("candidates.csv", "w");
-    if (!f_cand) { perror("Error creating candidates.csv"); return 1; }
+    if (!f_cand) {
+        perror("Error creating candidates.csv");
+        return 1;
+    }
     fprintf(f_cand, "X,Y,HC_Open,SA_Open\n");
     for (int j = 0; j < M; j++) {
-        fprintf(f_cand, "%f,%f,%d,%d\n",
-                candidates[j].x, candidates[j].y,
-                snapshot_hc[j], snapshot_sa[j]);
+        fprintf(f_cand, "%f,%f,%d,%d\n", candidates[j].x, candidates[j].y, snapshot_hc[j], snapshot_sa[j]);
     }
     fclose(f_cand);
 
